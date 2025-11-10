@@ -45,6 +45,7 @@ button:hover {
 }
 
 #howto-box {
+  text-align: left;
   background: #222;
   color: #eee;
   border: 1px solid #555;
@@ -59,7 +60,7 @@ button:hover {
 }
 
 #howto-box.show {
-  max-height: 300px; /* expands to fit text */
+  max-height: 300px;
   opacity: 1;
 }
 
