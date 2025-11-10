@@ -43,3 +43,27 @@ button {
 button:hover {
   background: #666;
 }
+
+#howto-box {
+  background: #222;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin: 10px auto;
+  width: 320px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.4s ease, opacity 0.4s ease;
+}
+
+#howto-box.show {
+  max-height: 300px; /* expands to fit text */
+  opacity: 1;
+}
+
+#howto-box.hidden {
+  max-height: 0;
+  opacity: 0;
+}

@@ -100,6 +100,3 @@ document.querySelectorAll(".presets button").forEach((btn) => {
   };
 });
 
-document.getElementById("howto").onclick = () => {
-  alert("Click 'Charge' to start charging.\n'Pause' to stop.\n'Discharge' to drain the bar.\nUse preset buttons to start a timed discharge.");
-};
