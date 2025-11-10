@@ -100,3 +100,20 @@ document.querySelectorAll(".presets button").forEach((btn) => {
   };
 });
 
+const howtoBtn = document.getElementById("howto");
+const howtoBox = document.getElementById("howto-box");
+let howtoVisible = false;
+
+howtoBtn.onclick = () => {
+  howtoVisible = !howtoVisible;
+  if (howtoVisible) {
+    howtoBox.classList.remove("hidden");
+    howtoBox.classList.add("show");
+    howtoBtn.textContent = "Hide Instructions";
+  } else {
+    howtoBox.classList.remove("show");
+    howtoBox.classList.add("hidden");
+    howtoBtn.textContent = "How to Use";
+  }
+};
+
