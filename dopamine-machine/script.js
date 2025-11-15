@@ -8,6 +8,7 @@ let dischargeElapsed = 0;
 let showTotal = false;
 let timer;
 
+const totalTimeText = document.getElementById("total-time");
 const progressBar = document.getElementById("progress-bar");
 const statusText = document.getElementById("status");
 
@@ -24,6 +25,8 @@ function charge() {
   charging = true;
   paused = false;
   setStatus("Charging...");
+  if (showTotal) {
+    totalTimeText.textContent = `Total time: ${elapsed.toFixed(1)} s`;}
   const start = Date.now() - elapsed * 1000;
   clearInterval(timer);
   timer = setInterval(() => {
@@ -31,6 +34,8 @@ function charge() {
     elapsed = (Date.now() - start) / 1000;
     const progress = Math.min((elapsed / maxTime) * 100, 100);
     updateProgress(progress);
+    if (showTotal) {
+      totalTimeText.textContent = `Total time: ${elapsed.toFixed(1)} s`;}
     if (progress >= 100) {
       charging = false;
       setStatus("Fully charged");
@@ -54,6 +59,8 @@ function discharge() {
     const remaining = Math.max(dischargeTotal - dischargeElapsed, 0);
     const progress = (remaining / dischargeTotal) * 100;
     updateProgress(progress);
+    if (showTotal) {
+    totalTimeText.textContent = `Total time: ${remaining.toFixed(1)} s`;}
     if (progress <= 0) {
       discharging = false;
       elapsed = 0;
@@ -80,11 +87,13 @@ document.getElementById("reset").onclick = () => {
   paused = false;
   updateProgress(0);
   setStatus("Reset to empty");
+  totalTimeText.textContent = "Total time: 0.0 s";
 };
 document.getElementById("show").onclick = () => {
   showTotal = !showTotal;
-  if (showTotal) setStatus(`Total charged time: ${elapsed.toFixed(1)} s`);
-  else setStatus("Idle");
+  if (!showTotal) {
+    totalTimeText.textContent = "";
+  }
 };
 
 document.querySelectorAll(".presets button").forEach((btn) => {

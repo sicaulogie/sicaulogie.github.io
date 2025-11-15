@@ -68,3 +68,9 @@ button:hover {
   max-height: 0;
   opacity: 0;
 }
+
+#total-time {
+  font-size: 14px;
+  color: #ccc;
+  margin-top: -5px;
+}
