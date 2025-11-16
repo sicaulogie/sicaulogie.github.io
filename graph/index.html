@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Dopamine Graph Demo</title>
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        color: white;
+        font-family: system-ui, sans-serif;
+        overflow: hidden;
+    }
+
+    #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(40,40,40,0.8);
+        padding: 12px;
+        border-radius: 8px;
+        backdrop-filter: blur(6px);
+    }
+
+    label { font-size: 14px; }
+
+    .meter {
+        width: 200px;
+        height: 10px;
+        background: #333;
+        border-radius: 6px;
+        margin-top: 5px;
+        overflow: hidden;
+    }
+
+    .meter-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4caf50, #2ecc71);
+        width: 50%;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+    <button id="startBtn">Start Using Device</button>
+    <button id="stopBtn">Stop Using Device</button><br><br>
+
+    <label>Addiction Strength:</label><br>
+    <input type="range" id="addiction" min="1" max="50" value="15"><br><br>
+
+    <label>Dopamine Level:</label>
+    <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+// ========================================================
+// CANVAS SETUP
+// ========================================================
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+resizeCanvas();
+
+window.onresize = resizeCanvas;
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+// ========================================================
+// CONSTANTS
+// ========================================================
+const mid = canvas.height / 2;
+let timeOffset = 0;
+let time = 0;
+
+let mouseDown = false;
+let draggingGreen = false;
+
+// ========================================================
+// GRAPH STATE
+// ========================================================
+let greenY = mid;          
+let shadowY = mid;         
+let redY = mid + 20;       
+
+let historyGreen = [];
+let historyShadow = [];
+let historyRed = [];
+
+let delayBuffer = [];
+
+let usingDevice = false;
+
+// ========================================================
+// SETTINGS
+// ========================================================
+function addictionStrength() {
+    return Number(document.getElementById("addiction").value);
+}
+
+// Exponential recovery factor
+function recoveryRate() {
+    return addictionStrength() * 0.001;
+}
+
+// ========================================================
+// EVENT HANDLING
+// ========================================================
+
+// ----- user interaction with green node -----
+canvas.addEventListener("pointerdown", (e) => {
+    mouseDown = true;
+
+    let y = e.clientY;
+    if (Math.abs(y - greenY) < 20) draggingGreen = true;
+});
+
+canvas.addEventListener("pointermove", (e) => {
+    if (draggingGreen) {
+        greenY = e.clientY;
+        if (greenY > mid) greenY = mid; // green stays in top half only
+        shadowY = mid - (greenY - mid); // perfect mirror
+    }
+});
+
+canvas.addEventListener("pointerup", () => {
+    mouseDown = false;
+    draggingGreen = false;
+});
+
+// ----- background drag to pan graph -----
+let lastX = 0;
+canvas.addEventListener("pointerdown", e => { lastX = e.clientX; });
+canvas.addEventListener("pointermove", e => {
+    if (!draggingGreen && mouseDown) {
+        timeOffset += (e.clientX - lastX);
+        lastX = e.clientX;
+    }
+});
+
+// ----- buttons -----
+document.getElementById("startBtn").onclick = () => {
+    usingDevice = true;
+};
+
+document.getElementById("stopBtn").onclick = () => {
+    usingDevice = false;
+
+    // green instantly collapses to the x-axis
+    greenY = mid;
+
+    // shadow remains at its last value
+    // (no update to shadowY)
+
+    // clear delayed "push" data
+    delayBuffer = [];
+};
+
+// ========================================================
+// MAIN UPDATE LOOP
+// ========================================================
+function update() {
+    time += 1;
+    const ease = addictionStrength() * 0.1;
+
+    // Record history
+    historyGreen.push({ x: time, y: greenY });
+    historyShadow.push({ x: time, y: shadowY });
+    historyRed.push({ x: time, y: redY });
+
+    if (historyGreen.length > 5000) {
+        historyGreen.shift();
+        historyShadow.shift();
+        historyRed.shift();
+    }
+
+    // Add green mirror to delay buffer
+    delayBuffer.push(shadowY);
+    if (delayBuffer.length > 20) delayBuffer.shift();
+
+    // Update red (threshold)
+    if (delayBuffer.length > 10 && usingDevice) {
+        // Follow delayed shadow curve
+        let delayedY = delayBuffer[0];
+        redY += (delayedY - redY) * 0.15;
+    } else {
+        // Recover slowly toward mid (exponential)
+        redY += (mid - redY) * recoveryRate();
+    }
+
+    // Update dopamine meter
+    let meterLevel = 1 - ((redY - mid) / 200);
+    document.getElementById("meterFill").style.width =
+        Math.max(0, Math.min(1, meterLevel)) * 100 + "%";
+
+    draw();
+    requestAnimationFrame(update);
+}
+requestAnimationFrame(update);
+
+// ========================================================
+// DRAWING
+// ========================================================
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ----- axes -----
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    ctx.lineTo(canvas.width, mid);
+    ctx.stroke();
+
+    // vertical axis
+    ctx.beginPath();
+    ctx.moveTo(canvas.width/2 + timeOffset, 0);
+    ctx.lineTo(canvas.width/2 + timeOffset, canvas.height);
+    ctx.stroke();
+
+    drawHistory(historyShadow, "#116622");
+    drawHistory(historyGreen, "#33ff55");
+    drawHistory(historyRed, "#ff3333");
+
+    // Draw nodes
+    drawDot(greenY, "#00ff55");
+    drawDot(shadowY, "#0a6025");
+    drawDot(redY, "#ff4444");
+}
+
+function drawHistory(history, color) {
+    if (history.length < 2) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    for (let i = 1; i < history.length; i++) {
+        ctx.lineTo(
+            (history[i].x - time) * 3 + canvas.width/2 + timeOffset,
+            history[i].y
+        );
+    }
+    ctx.stroke();
+}
+
+function drawDot(y, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(canvas.width/2 + timeOffset, y, 7, 0, Math.PI*2);
+    ctx.fill();
+}
+</script>
+
+</body>
+</html>
