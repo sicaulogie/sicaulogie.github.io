@@ -1,29 +1,32 @@
 body {
-    background: #111;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    text-align: center;
-}
-
-canvas {
+    margin: 0;
+    overflow: hidden; /* fullscreen no scroll */
     background: #000;
-    border: 1px solid #333;
-    margin-top: 20px;
+    font-family: Arial, sans-serif;
+    color: #fff;
 }
 
-.controls {
-    margin-top: 20px;
-}
+#stopBtn {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 20;
 
-button {
     padding: 10px 20px;
     background: #444;
     border: 1px solid #888;
     color: white;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
 }
 
-button:hover {
+#stopBtn:hover {
     background: #666;
+}
+
+canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none; /* important for phones */
 }

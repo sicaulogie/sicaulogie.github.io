@@ -1,25 +1,76 @@
+// ------------------------------
+// Canvas setup
+// ------------------------------
 const canvas = document.getElementById("graph");
 const ctx = canvas.getContext("2d");
 
-const marginLeft = 80;
-const marginBottom = 60;
-const marginTop = 50;
+// Create a trail canvas much wider than the viewport
+const trailCanvas = document.createElement("canvas");
+const trailCtx = trailCanvas.getContext("2d");
 
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // On resize, we must resize and CLEAR the trail canvas to prevent artifacts
+    const oldTrailData = trailCtx.getImageData(0, 0, trailCanvas.width, trailCanvas.height);
+    
+    trailCanvas.width = canvas.width * 3;
+    trailCanvas.height = canvas.height;
+    
+    // Clear the new canvas space
+    trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+    
+    // Optional: Re-plot a portion of the old data (if needed), but often better to start fresh
+    // For simplicity with this scrolling type, we'll let it be cleared.
+}
+window.addEventListener("resize", resize);
+resize();
+
+
+// ------------------------------
+// State variables
+// ------------------------------
 let time = 0;
-// We now use scrollOffset to track the total elapsed time/distance
-let scrollOffset = 0; 
+let scrollOffset = 0;
 
-let green = { y: 200 };
-let shadow = { y: 400 };
-let red = { y: 230 };
+const marginLeft = 80;
+const marginTop = 50;
+const marginBottom = 80;
+const SCROLL_SPEED = 1; // 1 pixel per frame (0.1s time step)
+
+let centerY = () => canvas.height / 2;     // ZERO LINE
+
+// Initial dot positions
+let green = { y: centerY() - 80 };
+let shadow = { y: centerY() + 80 };
+let red = { y: centerY() - 60 };
+
 let draggingGreen = false;
+let draggingTouch = false;
 
-// Set to 0.05 for a slow but visible approach (5% of remaining distance per frame)
-let redSlowFactor = 0.005; 
+// User values
+let redSlowFactor = 0.005;       // Normal slow approach (5% of distance per frame)
+let redSlowAfterStop = 0.001;    // Even slower after stop
 
-// Define how many pixels the graph advances per time step (0.1s)
-const SCROLL_SPEED = 1;
 
+// ------------------------------
+// Trails
+// ------------------------------
+function drawTrail(x, y, color) {
+    trailCtx.fillStyle = color;
+    // We draw a small rectangle for the trail point
+    trailCtx.fillRect(x, y, 2, 2);
+}
+
+function dotX() {
+    return marginLeft + 200;
+}
+
+
+// ------------------------------
+// Helpers
+// ------------------------------
 function mapRange(v, a1, a2, b1, b2) {
     return b1 + (v - a1) * (b2 - b1) / (a2 - a1);
 }
@@ -30,29 +81,11 @@ function quantize01(pixelY) {
     return mapRange(logical, -7, 7, canvas.height - marginBottom, marginTop);
 }
 
-// TRAILS (scrolling)
-const trailCanvas = document.createElement("canvas");
-// Make trail canvas much wider than the viewport to avoid frequent resets
-trailCanvas.width = canvas.width * 5; 
-trailCanvas.height = canvas.height;
-const trailCtx = trailCanvas.getContext("2d");
 
-// Draw a point onto scrolling trail
-function drawTrail(x, y, color) {
-    trailCtx.fillStyle = color;
-    // We draw a small rectangle for the trail point
-    trailCtx.fillRect(x, y, 2, 2);
-}
-
-// Fixed dot X position on screen
-function dotX() {
-    return marginLeft + 200;
-}
-
-// Draw scrolling axes
+// ------------------------------
+// Drawing axes
+// ------------------------------
 function drawAxes() {
-    const midY = canvas.height / 2;
-
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
 
@@ -62,122 +95,129 @@ function drawAxes() {
     ctx.lineTo(marginLeft, canvas.height - marginBottom);
     ctx.stroke();
 
-    // X axis (scrolling left) - The line itself stays within the canvas bounds
+    // FIXED X axis (0 line)
     ctx.beginPath();
-    ctx.moveTo(marginLeft, midY); 
-    ctx.lineTo(canvas.width, midY);
+    ctx.moveTo(marginLeft, centerY()); // Corrected to start at fixed marginLeft
+    ctx.lineTo(canvas.width, centerY());
     ctx.stroke();
 
+    // Labels
     ctx.fillStyle = "#fff";
     ctx.font = "15px Arial";
-
     ctx.fillText("Screen Time", marginLeft - 70, marginTop - 10);
     ctx.fillText("Threshold", marginLeft - 70, canvas.height - marginBottom + 40);
-    ctx.fillText("Time", canvas.width - 120, midY + 25);
+    ctx.fillText("Time", canvas.width - 100, centerY() + 30);
 
-    // Y-axis ticks 0 → 7
+    // Y ticks
     for (let i = 0; i <= 7; i++) {
-        let y = mapRange(i, 0, 7, midY, marginTop);
+        const y = mapRange(i, 0, 7, centerY(), marginTop);
         ctx.beginPath();
-        ctx.moveTo(marginLeft - 5, y);
-        ctx.lineTo(marginLeft + 5, y);
+        ctx.moveTo(marginLeft - 6, y);
+        ctx.lineTo(marginLeft + 6, y);
         ctx.stroke();
         ctx.fillText(i.toFixed(1), marginLeft - 45, y + 5);
     }
 
-    // X-axis ticks scroll left
+    // X ticks (scrolling)
     for (let t = 0; t <= time + 20; t += 10) {
-        // Apply -scrollOffset to move ticks left with time
-        // The 50 is the scale factor (50 pixels per 10 seconds)
-        let x = marginLeft + (t / 10) * 500 - scrollOffset; 
-        
-        // Only draw ticks that are visible past the Y-axis
-        if (x < marginLeft) continue; 
+        // t * 50 is the scale factor (50 pixels per 10 seconds)
+        const x = marginLeft + (t / 10) * 500 - scrollOffset; 
+        if (x < marginLeft) continue;
 
         ctx.beginPath();
-        ctx.moveTo(x, midY - 5);
-        ctx.lineTo(x, midY + 5);
+        ctx.moveTo(x, centerY() - 5);
+        ctx.lineTo(x, centerY() + 5);
         ctx.stroke();
-
-        ctx.fillText(t + "s", x - 10, midY + 25);
+        ctx.fillText(t + "s", x - 12, centerY() + 25);
     }
 }
 
-// Main update loop
+
+// ------------------------------
+// Drawing dots
+// ------------------------------
+function drawDot(x, y, color) {
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+
+// ------------------------------
+// Main loop
+// ------------------------------
 function update() {
     time += 0.1;
-    // Advance the scroll offset by the speed
-    scrollOffset += SCROLL_SPEED;  
+    scrollOffset += SCROLL_SPEED; // Use SCROLL_SPEED constant
 
-    // Mirror green to make shadow
-    shadow.y = canvas.height - green.y;
+    // Mirror shadow across the center line
+    shadow.y = centerY() * 2 - green.y;
 
     // Red follows shadow slowly
     red.y += (shadow.y - red.y) * redSlowFactor;
 
-    // Draw trails: new point is drawn at the *current* scroll position
+    // Corrected Trail Draw: Draw new point at dotX() + scrollOffset on the wide trailCanvas
     const trailX = dotX() + scrollOffset;
-    
-    drawTrail(trailX, green.y,  "rgba(0,255,0,0.8)");
-    drawTrail(trailX, shadow.y, "rgba(0,150,0,0.4)");
-    drawTrail(trailX, red.y,    "rgba(255,60,60,0.8)");
+    drawTrail(trailX, green.y, "rgba(0,255,0,0.8)");
+    drawTrail(trailX, shadow.y, "rgba(0,150,0,0.5)");
+    drawTrail(trailX, red.y, "rgba(255,60,60,0.9)");
 
-    // Handle history scrolling and cleanup
-    if (scrollOffset > trailCanvas.width - canvas.width) {
-        // Shift the entire existing trail data to the left
-        const imageData = trailCtx.getImageData(canvas.width, 0, trailCanvas.width - canvas.width, trailCanvas.height);
+    // History wrapping and reset
+    // When the scroll offset is close to the total width of the trailCanvas
+    if (scrollOffset + canvas.width > trailCanvas.width) {
+        
+        // 1. Calculate the visible history data (from dotX() onward)
+        const dataWidthToKeep = canvas.width - dotX(); 
+        const visibleData = trailCtx.getImageData(trailX - dataWidthToKeep, 0, dataWidthToKeep, trailCanvas.height);
+        
+        // 2. Clear the entire trail canvas
         trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-        trailCtx.putImageData(imageData, 0, 0);
-
-        // Reset scrollOffset based on the width of the shifted data
-        scrollOffset = 0; 
+        
+        // 3. Re-plot the visible history at the beginning of the canvas (marginLeft)
+        trailCtx.putImageData(visibleData, marginLeft, 0); 
+        
+        // 4. Reset scrollOffset to the position of the old history
+        scrollOffset = marginLeft + dataWidthToKeep - dotX();
     }
 
     draw();
     requestAnimationFrame(update);
 }
 
-function drawDot(x, y, color) {
-    ctx.beginPath();
-    ctx.fillStyle = color;
-    ctx.arc(x, y, 8, 0, Math.PI * 2);
-    ctx.fill();
-}
-
-// Entire render pass
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw past trails: Shift the entire history canvas to the left by scrollOffset
+    // Trails first: Shift the entire trailCanvas left by the offset
     ctx.drawImage(trailCanvas, -scrollOffset, 0);
 
     drawAxes();
 
-    let x = dotX(); // Dots remain fixed on the screen
-
-    drawDot(x, shadow.y, "rgba(0,150,0,0.4)");
-    drawDot(x, green.y,  "#00ff00");
-    drawDot(x, red.y,    "#ff4444");
+    const x = dotX();
+    drawDot(x, shadow.y, "rgba(0,150,0,0.5)");
+    drawDot(x, green.y, "#00ff00");
+    drawDot(x, red.y, "#ff4444");
 }
 
-// --- Green dot DRAGGING ---
-canvas.addEventListener("mousedown", e => {
-    let r = canvas.getBoundingClientRect();
-    let mx = e.clientX - r.left;
-    let my = e.clientY - r.top;
 
-    if (Math.hypot(mx - dotX(), my - green.y) < 12) {
+// ------------------------------
+// MOUSE events
+// ------------------------------
+canvas.addEventListener("mousedown", e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+
+    if (Math.hypot(mx - dotX(), my - green.y) < 12)
         draggingGreen = true;
-    }
 });
 
 canvas.addEventListener("mousemove", e => {
     if (!draggingGreen) return;
-
-    let r = canvas.getBoundingClientRect();
+    const r = canvas.getBoundingClientRect();
     let my = e.clientY - r.top;
-
-    // Restrict movement to the graph area
+    
+    // Restrict movement to the graph area before quantizing
     if (my < marginTop) my = marginTop;
     if (my > canvas.height - marginBottom) my = canvas.height - marginBottom;
     
@@ -187,14 +227,58 @@ canvas.addEventListener("mousemove", e => {
 canvas.addEventListener("mouseup", () => draggingGreen = false);
 canvas.addEventListener("mouseleave", () => draggingGreen = false);
 
-// STOP using device
-document.getElementById("stopBtn").onclick = () => {
-    let midY = canvas.height / 2;
 
-    green.y = midY;        // Green jumps to center
-    // Set to a very slow factor for recovery
-    redSlowFactor = 0.001;  
-    red.y = shadow.y;      // Red jumps outward (to mirror shadow)
+// ------------------------------
+// TOUCH events
+// ------------------------------
+canvas.addEventListener("touchstart", e => {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches[0];
+    const mx = t.clientX - r.left;
+    const my = t.clientY - r.top;
+
+    if (Math.hypot(mx - dotX(), my - green.y) < 30) {
+        draggingGreen = true;
+        draggingTouch = true;
+        e.preventDefault();
+    }
+});
+
+canvas.addEventListener("touchmove", e => {
+    if (!draggingTouch) return;
+
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches[0];
+    let my = t.clientY - r.top;
+    
+    // Restrict movement to the graph area before quantizing
+    if (my < marginTop) my = marginTop;
+    if (my > canvas.height - marginBottom) my = canvas.height - marginBottom;
+
+    green.y = quantize01(my);
+    e.preventDefault();
+});
+
+canvas.addEventListener("touchend", () => {
+    draggingTouch = false;
+    draggingGreen = false;
+});
+
+
+// ------------------------------
+// STOP button
+// ------------------------------
+document.getElementById("stopBtn").onclick = () => {
+    // Switch to the slower recovery rate
+    redSlowFactor = redSlowAfterStop;
+
+    // Green drops to zero line
+    green.y = centerY();
+
+    // Red jumps to opposite side first
+    red.y = shadow.y;
 };
 
+
+// ------------------------------
 update();
